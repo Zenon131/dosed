@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Dosed Tracker",
+    "slug": "dosed-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/app-icon-rtj.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/app-icon-rtj.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jonathanwallace.dosed",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserNotificationsUsageDescription": "Dosed sends local reminders when it's time to take your medication."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/app-icon-rtj.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.jonathanwallace.dosed",
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/newly.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-router",
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/app-icon-rtj.png",
+          "color": "#7C3AED",
+          "defaultChannel": "med-reminders"
+        }
+      ]
+    ],
+    "scheme": "dosedtracker",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "backendUrl": "https://jebz4aexzyy3xpvxwg7ypzmyzkq3g3wu.app.specular.dev",
+      "eas": {
+        "projectId": "2d3688a3-6acb-4c1e-8e2b-93fbcf503803"
+      }
+    },
+    "owner": "jwallace2026"
+  }
+}
