@@ -17,7 +17,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationsUsageDescription": "Dosed sends local reminders when it's time to take your medication."
-      }
+      },
+      "buildNumber": "4"
     },
     "android": {
       "adaptiveIcon": {
@@ -26,6 +27,8 @@
       },
       "package": "com.jonathanwallace.dosed",
       "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM"
       ]
@@ -59,6 +62,12 @@
         "projectId": "2d3688a3-6acb-4c1e-8e2b-93fbcf503803"
       }
     },
-    "owner": "jwallace2026"
+    "owner": "jwallace2026",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2d3688a3-6acb-4c1e-8e2b-93fbcf503803"
+    }
   }
 }
