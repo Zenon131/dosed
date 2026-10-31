@@ -41,7 +41,7 @@ function parseMedication(med: any) {
 async function handleGetMeds(app: any, request: any, reply: any) {
   const userId = getUserId(request);
   if (!userId) return reply.status(400).send({ error: 'User ID required' });
-  const meds = [{ id: "1", user_id: userId, name: "Test Med", dosage: "10mg", frequency: "once_daily", times: "["08:00"]", notes: null, color: "#FFF", created_at: new Date().toISOString() }];
+  const meds = [{ id: "1", user_id: userId, name: "Test Med", dosage: "10mg", frequency: "once_daily", times: '["08:00"]', notes: null, color: "#FFF", created_at: new Date().toISOString() }];
   return { medications: meds.map(parseMedication) };
 }
 
