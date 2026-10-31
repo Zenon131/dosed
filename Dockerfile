@@ -10,11 +10,8 @@ WORKDIR /app
 # Copy package files from the backend directory
 COPY backend/package*.json ./
 
-# Set the authentication token as an environment variable that npm recognizes
-ENV NPM_CONFIG_AUTH=$NPM_TOKEN
-
-# Install dependencies
-RUN npm install --no-audit --no-fund
+# Configure npm to use GitHub Packages for the @specific-dev scope
+RUN echo "@specific-dev:registry=https://npm.pkg.github.com" > .npmrc &&     echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc &&     npm install --no-audit --no-fund &&     rm -f .npmrc
 
 # Copy the rest of the backend source
 COPY backend/ .
