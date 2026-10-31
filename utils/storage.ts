@@ -7,7 +7,22 @@ export const KEYS = {
   DOSES: '@sassy_meds/doses',
   USER_NAME: '@sassy_meds/user_name',
   ONBOARDED: '@sassy_meds/onboarded',
+  DEVICE_ID: '@sassy_meds/device_id',
 } as const;
+
+export async function getDeviceId(): Promise<string> {
+  try {
+    const id = await AsyncStorage.getItem(KEYS.DEVICE_ID);
+    if (id) return id;
+    
+    const newId = Math.random().toString(36).slice(2, 15) + Date.now().toString(36);
+    await AsyncStorage.setItem(KEYS.DEVICE_ID, newId);
+    return newId;
+  } catch (err) {
+    logError(err, { context: 'storage.getDeviceId' });
+    return 'unknown-device';
+  }
+}
 
 export async function loadMeds(): Promise<Medication[]> {
   try {
@@ -93,7 +108,7 @@ export async function setOnboarded(): Promise<void> {
 export async function resetAll(): Promise<void> {
   try {
     console.log('[Storage] Resetting all data');
-    await AsyncStorage.multiRemove([KEYS.MEDS, KEYS.DOSES, KEYS.USER_NAME, KEYS.ONBOARDED]);
+    await AsyncStorage.multiRemove([KEYS.MEDS, KEYS.DOSES, KEYS.USER_NAME, KEYS.ONBOARDED, KEYS.DEVICE_ID]);
   } catch (err) {
     logError(err, { context: 'storage.resetAll' });
     throw err;

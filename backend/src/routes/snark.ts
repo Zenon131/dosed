@@ -149,7 +149,7 @@ export function register(app: App, fastify: FastifyInstance) {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'HTTP-Referer': 'https://ntfcf7wm8qs8vs224ba78k6nrmxbz4hm.app.specular.dev',
+          'HTTP-Referer': 'https://dosed-production.up.railway.app',
           'X-Title': 'Dosed',
           'Content-Type': 'application/json',
         },

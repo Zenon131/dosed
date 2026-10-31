@@ -6,6 +6,7 @@ import { register as registerStatsRoutes } from './routes/stats.js';
 import { register as registerSnarkRoutes } from './routes/snark.js';
 import { register as registerDeviceRoutes } from './routes/devices.js';
 import { dispatchDueNotifications } from './services/notification_dispatcher.js';
+import { register as registerUserRoutes } from './routes/user.js';
 
 // Create application with schema for full database type support
 export const app = await createApplication(schema);
@@ -19,6 +20,7 @@ registerDoseRoutes(app, app.fastify);
 registerStatsRoutes(app, app.fastify);
 registerSnarkRoutes(app, app.fastify);
 registerDeviceRoutes(app, app.fastify);
+registerUserRoutes(app, app.fastify);
 
 await app.run();
 app.logger.info('Application running');
@@ -29,4 +31,3 @@ setInterval(() => {
     app.logger.error({ err }, 'Notification Dispatcher Loop Error');
   });
 }, 60000);
-

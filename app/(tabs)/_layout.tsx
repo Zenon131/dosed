@@ -23,6 +23,12 @@ const TABS = [
     label: 'Stats',
   },
   {
+    name: 'profile',
+    route: '/(tabs)/profile' as const,
+    icon: 'user' as const,
+    label: 'Profile',
+  },
+  {
     name: 'settings',
     route: '/(tabs)/settings' as const,
     icon: 'settings' as const,

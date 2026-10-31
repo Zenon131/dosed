@@ -22,3 +22,22 @@ Error: Transform failed with 1 error:
 }
 
 Node.js v26.10.0
+4:42:12 PM [tsx] change in ./src/index.ts Rerunning...
+c
+/Users/jonathanwallace/Projects/dosed/backend/node_modules/fastify/lib/route.js:433
+              throw new FST_ERR_SCH_SERIALIZATION_BUILD(opts.method, url, error.message)
+                    ^
+FastifyError [Error]: Failed building the serialization schema for PUT: /api/medications/:id, due to error schema is invalid: data/properties/error must be object,boolean
+    at Boot.<anonymous> (/Users/jonathanwallace/Projects/dosed/backend/node_modules/fastify/lib/route.js:433:21)
+    at Boot.wrapper (node:events:639:12)
+    at Boot.emit (node:events:526:24)
+    at /Users/jonathanwallace/Projects/dosed/backend/node_modules/avvio/boot.js:102:12
+    at /Users/jonathanwallace/Projects/dosed/backend/node_modules/avvio/boot.js:451:7
+    at done (/Users/jonathanwallace/Projects/dosed/backend/node_modules/avvio/lib/plugin.js:228:5)
+    at check (/Users/jonathanwallace/Projects/dosed/backend/node_modules/avvio/lib/plugin.js:252:9)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  code: 'FST_ERR_SCH_SERIALIZATION_BUILD',
+  statusCode: 500
+}
+
+Node.js v26.10.0

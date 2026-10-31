@@ -11,6 +11,9 @@ export const frequencyEnum = pgEnum('frequency', [
 export const users = pgTable('users', {
   id: text('id').primaryKey(), // Links to neon_auth.users
   email: text('email').notNull(),
+  full_name: text('full_name'),
+  avatar_url: text('avatar_url'),
+  caregiver_email: text('caregiver_email'),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

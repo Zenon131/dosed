@@ -16,6 +16,38 @@ Notifications.setNotificationHandler({
   }),
 });
 
+async function registerPushToken(): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const token = await Notifications.getExpoPushTokenAsync({
+      projectId: Constants.expoConfig?.extra?.eas?.projectId,
+    });
+    console.log('[Notifications] Expo Push Token:', token.data);
+    
+    const backendUrl = Constants.expoConfig?.extra?.backendUrl;
+    if (!backendUrl) throw new Error('backendUrl not configured');
+
+    // Note: In a real app, we'd get the deviceId from UserContext or storage
+    // For now, we assume it's sent in the header via a wrapper or handled by the API
+    const storage = await import('./storage');
+    const deviceId = await storage.getDeviceId();
+
+    await fetch(`${backendUrl}/api/devices/token`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-device-id': deviceId || 'unknown', 
+      },
+      body: JSON.stringify({ push_token: token.data }),
+    });
+
+    return token.data;
+  } catch (err) {
+    logError(err, { context: 'notifications.registerPushToken' });
+    return null;
+  }
+}
+
 export async function ensurePermissionsAndChannel(): Promise<boolean> {
   if (Platform.OS === 'web') {
     console.log('[Notifications] Web platform — skipping permissions');
@@ -52,6 +84,9 @@ export async function ensurePermissionsAndChannel(): Promise<boolean> {
 
     const granted = finalStatus === 'granted';
     console.log('[Notifications] Permission status:', finalStatus, 'granted:', granted);
+    if (granted) {
+      await registerPushToken();
+    }
     return granted;
   } catch (err) {
     logError(err, { context: 'notifications.ensurePermissionsAndChannel' });

@@ -15,6 +15,7 @@ import { useColors } from '@/constants/MedColors';
 import { createMed } from '@/utils/medsStore';
 import { Frequency, MED_COLORS } from '@/types/meds';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { API_BASE_URL } from '@/constants/api';
 
 // BUG 2 FIX: DateTimePicker has no web implementation — import only on Android
 // (this .tsx file is only reached on Android and web; iOS uses new.ios.tsx)
@@ -77,6 +78,10 @@ export default function NewMedScreen() {
   const [color, setColor] = useState(MED_COLORS[0]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [magicText, setMagicText] = useState('');
+  const [parsing, setParsing] = useState(false);
+
+  // Android-only: controls which time row's native dialog is open
 
   // Android-only: controls which time row's native dialog is open
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -115,7 +120,35 @@ export default function NewMedScreen() {
     }
   };
 
+  const handleMagicAdd = async () => {
+    if (!magicText.trim()) return;
+    setParsing(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/meds/parse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: magicText }),
+      });
+      if (!response.ok) throw new Error('Parsing failed');
+      const data = await response.json();
+      
+      setName(data.name);
+      setDosage(data.dosage);
+      setFrequency(data.frequency);
+      setTimes(data.times);
+      setNotes(data.notes || '');
+      setMagicText('');
+      Alert.alert('Magic!', 'AI has populated the fields for you.');
+    } catch (err) {
+      console.error('[NewMed] Magic add failed:', err);
+      Alert.alert('Error', 'Couldn\'t parse that. Try entering manually.');
+    } finally {
+      setParsing(false);
+    }
+  };
+
   const validate = (): boolean => {
+
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = 'Name is required';
     if (!dosage.trim()) errs.dosage = 'Dosage is required';
@@ -208,7 +241,60 @@ export default function NewMedScreen() {
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
       >
+        {/* Magic Add Section */}
+        <View style={{ 
+          backgroundColor: COLORS.surfaceSecondary, 
+          borderRadius: 16, 
+          padding: 16, 
+          borderWidth: 1, 
+          borderColor: COLORS.primary,
+          borderStyle: 'dashed',
+          gap: 12 
+        }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary, textAlign: 'center' }}>
+            ✨ Magic Add
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={[
+                { 
+                  flex: 1, 
+                  backgroundColor: COLORS.background, 
+                  borderRadius: 12, 
+                  padding: 12, 
+                  fontSize: 14, 
+                  color: COLORS.text, 
+                  borderWidth: 1, 
+                  borderColor: COLORS.border 
+                },
+              ]}
+              placeholder="e.g. Lipitor 20mg daily at 9pm"
+              placeholderTextColor={COLORS.textTertiary}
+              value={magicText}
+              onChangeText={setMagicText}
+            />
+            <AnimatedPressable
+              onPress={handleMagicAdd}
+              disabled={parsing}
+              style={{ 
+                backgroundColor: COLORS.primary, 
+                borderRadius: 12, 
+                paddingHorizontal: 16, 
+                justifyContent: 'center' 
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+                {parsing ? '...' : 'Parse'}
+              </Text>
+            </AnimatedPressable>
+          </View>
+          <Text style={{ fontSize: 11, color: COLORS.textSecondary, textAlign: 'center', opacity: 0.8 }}>
+            Describe your medication and let AI do the work.
+          </Text>
+        </View>
+
         {/* Name */}
+
         <View>
           <Text style={labelStyle}>Medication name *</Text>
           <TextInput
