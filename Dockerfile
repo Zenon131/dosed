@@ -10,9 +10,11 @@ WORKDIR /app
 # Copy package files from the backend directory
 COPY backend/package*.json ./
 
-# Configure npm to use the NPM_TOKEN for private packages
-# We create a temporary .npmrc file and then delete it after install
-RUN if [ -n "$NPM_TOKEN" ]; then       echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc;     fi &&     npm install &&     rm -f .npmrc
+# Set the token as an environment variable for the install step
+ENV NPM_TOKEN=$NPM_TOKEN
+
+# Use a simpler shell command to create .npmrc and install
+RUN echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc &&     npm install --no-audit --no-fund &&     rm -f .npmrc
 
 # Copy the rest of the backend source
 COPY backend/ .
