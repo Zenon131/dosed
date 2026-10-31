@@ -1,0 +1,20 @@
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+Error: Transform failed with 1 error:
+/Users/jonathanwallace/Projects/dosed/backend/src/routes/medications.ts:140:4: ERROR: Expected identifier but found "("
+    at failureErrorWithLog (/Users/jonathanwallace/.hermes/hermes-agent/node_modules/esbuild/lib/main.js:1752:15)
+    at /Users/jonathanwallace/.hermes/hermes-agent/node_modules/esbuild/lib/main.js:1019:50
+    at responseCallbacks.<computed> (/Users/jonathanwallace/.hermes/hermes-agent/node_modules/esbuild/lib/main.js:886:9)
+    at handleIncomingPacket (/Users/jonathanwallace/.hermes/hermes-agent/node_modules/esbuild/lib/main.js:941:12)
+    at Socket.readFromStdout (/Users/jonathanwallace/.hermes/hermes-agent/node_modules/esbuild/lib/main.js:864:7)
+    at Socket.emit (node:events:514:20)
+    at addChunk (node:internal/streams/readable:576:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:527:3)
+    at Readable.push (node:internal/streams/readable:407:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:194:23) {
+  name: 'TransformError'
+}
+
+Node.js v26.10.0
