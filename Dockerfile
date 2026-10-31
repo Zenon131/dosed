@@ -10,9 +10,11 @@ WORKDIR /app
 # Copy package files from the backend directory
 COPY backend/package*.json ./
 
-# Use a simpler way to create .npmrc:
-# We avoid the variable expansion in the echo and let the shell handle it.
-RUN echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc &&     npm install --no-audit --no-fund &&     rm -f .npmrc
+# Set the authentication token as an environment variable that npm recognizes
+ENV NPM_CONFIG_AUTH=$NPM_TOKEN
+
+# Install dependencies
+RUN npm install --no-audit --no-fund
 
 # Copy the rest of the backend source
 COPY backend/ .
