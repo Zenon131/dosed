@@ -1,13 +1,18 @@
-import { SymbolView, SymbolViewProps, SymbolWeight } from "expo-symbols";
-import { StyleProp, ViewStyle } from "react-native";
+import React from "react";
+import {
+  OpaqueColorValue,
+  StyleProp,
+  TextStyle,
+  ViewStyle,
+} from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { ICON_MAP, IconKey } from "@/constants/Icons";
 
 export function IconSymbol({
-  ios_icon_name,
-  android_material_icon_name,
+  iconName,
   size = 24,
   color,
   style,
-  weight = "regular",
   onPress,
   onClick,
   onMouseOver,
@@ -15,12 +20,11 @@ export function IconSymbol({
   testID,
   accessibilityLabel,
 }: {
-  ios_icon_name: SymbolViewProps["name"];
-  android_material_icon_name: any;
+  iconName: IconKey | string;
   size?: number;
-  color: string;
+  color: string | OpaqueColorValue;
   style?: StyleProp<ViewStyle>;
-  weight?: SymbolWeight;
+  weight?: any;
   onPress?: any;
   onClick?: any;
   onMouseOver?: any;
@@ -28,25 +32,21 @@ export function IconSymbol({
   testID?: any;
   accessibilityLabel?: any;
 }) {
+  // Map the common key to MaterialIcons name
+  const androidIconName = (ICON_MAP[iconName as IconKey]?.android || iconName) as any;
+
   return (
-    <SymbolView
+    <MaterialIcons
       onPress={onPress}
       onClick={onClick}
       onMouseOver={onMouseOver}
       onMouseLeave={onMouseLeave}
       testID={testID}
       accessibilityLabel={accessibilityLabel}
-      weight={weight}
-      tintColor={color}
-      resizeMode="scaleAspectFit"
-      name={ios_icon_name}
-      style={[
-        {
-          width: size,
-          height: size,
-        },
-        style,
-      ]}
+      color={color}
+      size={size}
+      name={androidIconName}
+      style={style as StyleProp<TextStyle>}
     />
   );
 }

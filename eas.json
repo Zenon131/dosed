@@ -20,7 +20,8 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "6779003762"
+        "ascAppId": "6779003762",
+        "companyName": "Pillkart LLC"
       }
     }
   }

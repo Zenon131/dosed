@@ -362,7 +362,7 @@ export default function SettingsScreen() {
           </View>
           <View>
             <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>
-              Dosed
+              Dosed · Pillkart LLC
             </Text>
             <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginTop: 2 }}>
               Version {appVersion}

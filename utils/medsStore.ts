@@ -1,8 +1,9 @@
 import * as Crypto from 'expo-crypto';
 import { Medication, DoseLog, StatsResponse, FREQUENCY_COUNT } from '@/types/meds';
-import { loadMeds, saveMeds, loadDoses, saveDoses, loadUserName } from './storage';
+import { loadMeds, saveMeds, loadDoses, saveDoses, loadUserName, getDeviceId } from './storage';
 import { logError } from './errorLogger';
 import { scheduleMedNotifications, cancelMedNotifications } from './notifications';
+import { API_BASE_URL } from '@/constants/api';
 
 function generateId(): string {
   try {
@@ -12,17 +13,47 @@ function generateId(): string {
   }
 }
 
-function getTodayISO(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+async function getCloudHeaders(): Promise<Record<string, string>> {
+  const userId = await getDeviceId();
+  return {
+    'Content-Type': 'application/json',
+    'x-user-id': userId,
+    'x-device-id': userId,
+  };
 }
 
 export async function getAllMeds(): Promise<Medication[]> {
   console.log('[MedsStore] getAllMeds');
-  return loadMeds();
+  const localMeds = await loadMeds();
+  try {
+    const headers = await getCloudHeaders();
+    const res = await fetch(`${API_BASE_URL}/api/medications`, { headers });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.medications)) {
+        // Filter out the legacy "Test Med" seed stub if present on an un-updated server
+        const cloudMeds: Medication[] = data.medications.filter(
+          (m: Medication) => !(m.id === '1' && m.name === 'Test Med')
+        );
+        // Merge any local meds not yet in cloud
+        const cloudIds = new Set(cloudMeds.map(m => m.id));
+        const unsyncedLocal = localMeds.filter(m => !cloudIds.has(m.id));
+        for (const med of unsyncedLocal) {
+          fetch(`${API_BASE_URL}/api/medications`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(med),
+          }).catch(() => {});
+        }
+        const merged = [...cloudMeds, ...unsyncedLocal];
+        await saveMeds(merged);
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.log('[MedsStore] Cloud fetch fallback to local cache:', err instanceof Error ? err.message : String(err));
+  }
+  return localMeds;
 }
 
 export async function getMedById(id: string): Promise<Medication | null> {
@@ -43,6 +74,19 @@ export async function createMed(
   };
   meds.push(med);
   await saveMeds(meds);
+
+  // Sync to Cloud (Neon Postgres via Railway)
+  try {
+    const headers = await getCloudHeaders();
+    await fetch(`${API_BASE_URL}/api/medications`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(med),
+    });
+  } catch (err) {
+    console.log('[MedsStore] Cloud sync createMed deferred:', err instanceof Error ? err.message : String(err));
+  }
+
   console.log('[MedsStore] createMed success, id:', med.id);
   try {
     const userName = await loadUserName();
@@ -68,6 +112,18 @@ export async function updateMed(
   const updated: Medication = { ...meds[idx], ...input };
   meds[idx] = updated;
   await saveMeds(meds);
+
+  try {
+    const headers = await getCloudHeaders();
+    await fetch(`${API_BASE_URL}/api/medications/${id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(input),
+    });
+  } catch (err) {
+    console.log('[MedsStore] Cloud sync updateMed deferred:', err instanceof Error ? err.message : String(err));
+  }
+
   console.log('[MedsStore] updateMed success:', updated.name);
   try {
     const userName = await loadUserName();
@@ -84,6 +140,17 @@ export async function deleteMed(id: string): Promise<void> {
   const filteredMeds = meds.filter(m => m.id !== id);
   const filteredDoses = doses.filter(d => d.medication_id !== id);
   await Promise.all([saveMeds(filteredMeds), saveDoses(filteredDoses)]);
+
+  try {
+    const headers = await getCloudHeaders();
+    await fetch(`${API_BASE_URL}/api/medications/${id}`, {
+      method: 'DELETE',
+      headers,
+    });
+  } catch (err) {
+    console.log('[MedsStore] Cloud sync deleteMed deferred:', err instanceof Error ? err.message : String(err));
+  }
+
   console.log('[MedsStore] deleteMed success, also removed doses for med');
   try {
     await cancelMedNotifications(id);
@@ -108,6 +175,18 @@ export async function logDose(
   };
   doses.push(dose);
   await saveDoses(doses);
+
+  try {
+    const headers = await getCloudHeaders();
+    await fetch(`${API_BASE_URL}/api/doses`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(dose),
+    });
+  } catch (err) {
+    console.log('[MedsStore] Cloud sync logDose deferred:', err instanceof Error ? err.message : String(err));
+  }
+
   console.log('[MedsStore] logDose success, id:', dose.id);
   return dose;
 }
@@ -117,6 +196,17 @@ export async function undoDose(doseId: string): Promise<void> {
   const doses = await loadDoses();
   const filtered = doses.filter(d => d.id !== doseId);
   await saveDoses(filtered);
+
+  try {
+    const headers = await getCloudHeaders();
+    await fetch(`${API_BASE_URL}/api/doses/${doseId}`, {
+      method: 'DELETE',
+      headers,
+    });
+  } catch (err) {
+    console.log('[MedsStore] Cloud sync undoDose deferred:', err instanceof Error ? err.message : String(err));
+  }
+
   console.log('[MedsStore] undoDose success');
 }
 
@@ -140,7 +230,6 @@ export async function getStats7Day(): Promise<StatsResponse> {
     const day = String(d.getDate()).padStart(2, '0');
     const dateStr = `${y}-${mo}-${day}`;
 
-    // Expected: sum of scheduled times for meds created on/before this day
     let expected = 0;
     for (const med of meds) {
       if (med.frequency === 'as_needed') continue;
@@ -150,7 +239,6 @@ export async function getStats7Day(): Promise<StatsResponse> {
       }
     }
 
-    // Taken: doses for this day where scheduled_time is NOT null
     const taken = allDoses.filter(
       d => d.taken_at.startsWith(dateStr) && d.scheduled_time !== null
     ).length;
@@ -158,7 +246,6 @@ export async function getStats7Day(): Promise<StatsResponse> {
     days.push({ date: dateStr, taken, expected });
   }
 
-  // Streak: consecutive days from today backward where rate >= 0.8 AND expected > 0
   let streak = 0;
   for (let i = days.length - 1; i >= 0; i--) {
     const day = days[i];

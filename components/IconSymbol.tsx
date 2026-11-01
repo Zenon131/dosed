@@ -1,5 +1,3 @@
-// This file is a fallback for using MaterialIcons on Android and web.
-
 import React from "react";
 import { SymbolWeight } from "expo-symbols";
 import {
@@ -9,19 +7,13 @@ import {
   ViewStyle,
 } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { ICON_MAP, IconKey } from "@/constants/Icons";
 
-/**
- * An icon component that uses native SFSymbols on iOS, and MaterialIcons on Android and web. This ensures a consistent look across platforms, and optimal resource usage.
- *
- * Icon `name`s are based on SFSymbols and require manual mapping to MaterialIcons.
- */
 export function IconSymbol({
-  ios_icon_name = undefined,
-  android_material_icon_name,
+  iconName,
   size = 24,
   color,
   style,
-  // Forward only the event handlers we inject from EditableElement_ (and a few common RN/web props).
   onPress,
   onClick,
   onMouseOver,
@@ -29,8 +21,7 @@ export function IconSymbol({
   testID,
   accessibilityLabel,
 }: {
-  ios_icon_name?: string | undefined;
-  android_material_icon_name: keyof typeof MaterialIcons.glyphMap;
+  iconName: IconKey | string;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<ViewStyle>;
@@ -42,6 +33,9 @@ export function IconSymbol({
   testID?: any;
   accessibilityLabel?: any;
 }) {
+  // Map the common key to MaterialIcons name
+  const androidIconName = (ICON_MAP[iconName as IconKey]?.android || iconName) as any;
+
   return (
     <MaterialIcons
       onPress={onPress}
@@ -52,7 +46,7 @@ export function IconSymbol({
       accessibilityLabel={accessibilityLabel}
       color={color}
       size={size}
-      name={android_material_icon_name}
+      name={androidIconName}
       style={style as StyleProp<TextStyle>}
     />
   );

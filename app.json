@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dosed Tracker",
     "slug": "dosed-tracker",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon-rtj.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationsUsageDescription": "Dosed sends local reminders when it's time to take your medication."
       },
-      "buildNumber": "10"
+      "buildNumber": "15"
     },
     "android": {
       "adaptiveIcon": {
@@ -57,17 +57,13 @@
     },
     "extra": {
       "router": {},
-      "backendUrl": "https://jebz4aexzyy3xpvxwg7ypzmyzkq3g3wu.app.specular.dev",
+      "companyName": "Pillkart LLC",
+      "backendUrl": "https://dosed-production.up.railway.app",
       "eas": {
         "projectId": "2d3688a3-6acb-4c1e-8e2b-93fbcf503803"
       }
     },
     "owner": "jwallace2026",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/2d3688a3-6acb-4c1e-8e2b-93fbcf503803"
-    }
+    "runtimeVersion": "1.0"
   }
 }

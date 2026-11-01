@@ -13,20 +13,28 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/constants/MedColors';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { API_BASE_URL } from '@/constants/api';
+import { useUser } from '@/contexts/UserContext';
+import { getDeviceId } from '@/utils/storage';
 
 export default function ProfileScreen() {
   const COLORS = useColors();
   const insets = useSafeAreaInsets();
+  const { name, setName, reset } = useUser();
 
   const [user, setUser] = useState<{
     full_name: string;
     email: string;
     avatar_url: string;
     caregiver_email: string;
-  } | null>(null);
+  } | null>({
+    full_name: name || 'Jonathan',
+    email: '',
+    avatar_url: '',
+    caregiver_email: '',
+  });
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({
-    full_name: '',
+    full_name: name || 'Jonathan',
     avatar_url: '',
     caregiver_email: '',
   });
@@ -39,19 +47,35 @@ export default function ProfileScreen() {
   const fetchUser = async () => {
     setLoading(true);
     try {
+      const userId = await getDeviceId();
       const response = await fetch(`${API_BASE_URL}/api/user`, {
-        headers: { 'x-user-id': 'test-user-123' },
+        headers: { 'x-user-id': userId },
       });
-      if (!response.ok) throw new Error('Failed to fetch user');
+      if (response.status === 404) {
+        const fallbackName = name || 'Jonathan';
+        setUser({
+          full_name: fallbackName,
+          email: '',
+          avatar_url: '',
+          caregiver_email: '',
+        });
+        setFormData({
+          full_name: fallbackName,
+          avatar_url: '',
+          caregiver_email: '',
+        });
+        return;
+      }
+      if (!response.ok) return;
       const data = await response.json();
       setUser(data);
       setFormData({
-        full_name: data.full_name || '',
+        full_name: data.full_name || name || 'Jonathan',
         avatar_url: data.avatar_url || '',
         caregiver_email: data.caregiver_email || '',
       });
     } catch (err) {
-      console.error('Fetch user error:', err);
+      console.log('[Profile] Using local profile fallback:', err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -60,17 +84,30 @@ export default function ProfileScreen() {
   const handleSave = async () => {
     setLoading(true);
     try {
+      const trimmedName = formData.full_name.trim() || 'Jonathan';
+      await setName(trimmedName);
+      setUser(prev => ({
+        full_name: trimmedName,
+        email: prev?.email || '',
+        avatar_url: formData.avatar_url,
+        caregiver_email: formData.caregiver_email,
+      }));
+      const userId = await getDeviceId();
       const response = await fetch(`${API_BASE_URL}/api/user`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
-          'x-user-id': 'test-user-123' 
+          'x-user-id': userId 
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, full_name: trimmedName }),
       });
-      if (!response.ok) throw new Error('Update failed');
-      const data = await response.json();
-      setUser(data);
+      if (response.ok) {
+        const text = await response.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setUser(data);
+        }
+      }
       setEditing(false);
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (err) {
@@ -106,17 +143,17 @@ export default function ProfileScreen() {
   };
 
   const sectionStyle = {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: COLORS.surface,
     borderRadius: 24,
     padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: COLORS.border,
     gap: 16,
     marginBottom: 20,
   };
 
   const inputStyle = {
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    backgroundColor: COLORS.surfaceSecondary,
     borderRadius: 12,
     padding: 12,
     fontSize: 15,
@@ -153,9 +190,6 @@ export default function ProfileScreen() {
         </View>
         <Text style={{ fontSize: 24, fontWeight: '700', color: COLORS.text }}>
           {user?.full_name || 'User Profile'}
-        </Text>
-        <Text style={{ fontSize: 15, color: COLORS.textSecondary, marginTop: 4 }}>
-          {user?.email}
         </Text>
       </View>
 

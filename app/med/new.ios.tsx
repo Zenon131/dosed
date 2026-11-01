@@ -17,6 +17,7 @@ import { useColors } from '@/constants/MedColors';
 import { createMed } from '@/utils/medsStore';
 import { Frequency, MED_COLORS } from '@/types/meds';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { API_BASE_URL } from '@/constants/api';
 
 const FREQ_OPTIONS: { value: Frequency; label: string; count: number }[] = [
   { value: 'once_daily', label: '1×', count: 1 },
@@ -55,9 +56,40 @@ export default function NewMedScreenIOS() {
   const [color, setColor] = useState(MED_COLORS[0]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [magicText, setMagicText] = useState('');
+  const [parsing, setParsing] = useState(false);
 
   const isValid = name.trim().length > 0 && dosage.trim().length > 0;
   const cardShadow = isDark ? undefined : '0 1px 3px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.04)';
+
+  const handleMagicAdd = async () => {
+    if (!magicText.trim()) return;
+    setParsing(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/meds/parse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: magicText }),
+      });
+      if (!response.ok) throw new Error('Parsing failed');
+      const data = await response.json();
+
+      setName(data.name || '');
+      setDosage(data.dosage || '');
+      if (data.frequency) setFrequency(data.frequency);
+      if (Array.isArray(data.times) && data.times.length > 0) setTimes(data.times);
+      setNotes(data.notes || '');
+      setMagicText('');
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Magic!', 'AI has populated the fields for you.');
+    } catch (err) {
+      console.error('[NewMed iOS] Magic add failed:', err);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', "Couldn't parse that. Try entering manually.");
+    } finally {
+      setParsing(false);
+    }
+  };
 
   const handleFrequencyChange = (freq: Frequency) => {
     console.log('[NewMed iOS] Frequency changed to:', freq);
@@ -160,6 +192,62 @@ export default function NewMedScreenIOS() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ gap: 24, paddingTop: 8 }}>
+            {/* Magic Add Section */}
+            <View
+              style={{
+                backgroundColor: COLORS.surface,
+                borderRadius: 14,
+                borderCurve: 'continuous',
+                padding: 16,
+                borderWidth: 1,
+                borderColor: COLORS.primary,
+                borderStyle: 'dashed',
+                boxShadow: cardShadow,
+                gap: 12,
+              }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.primary, textAlign: 'center' }}>
+                ✨ Magic Add
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    backgroundColor: COLORS.background,
+                    borderRadius: 12,
+                    borderCurve: 'continuous',
+                    padding: 12,
+                    fontSize: 14,
+                    color: COLORS.text,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                  }}
+                  placeholder="e.g. Lipitor 20mg daily at 9pm"
+                  placeholderTextColor={COLORS.textTertiary}
+                  value={magicText}
+                  onChangeText={setMagicText}
+                />
+                <AnimatedPressable
+                  onPress={handleMagicAdd}
+                  disabled={parsing}
+                  style={{
+                    backgroundColor: COLORS.primary,
+                    borderRadius: 12,
+                    borderCurve: 'continuous',
+                    paddingHorizontal: 16,
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+                    {parsing ? '...' : 'Parse'}
+                  </Text>
+                </AnimatedPressable>
+              </View>
+              <Text style={{ fontSize: 11, color: COLORS.textSecondary, textAlign: 'center', opacity: 0.8 }}>
+                Describe your medication and let AI do the work.
+              </Text>
+            </View>
+
             {/* Name + Dosage group */}
             <View
               style={{

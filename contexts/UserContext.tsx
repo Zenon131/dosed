@@ -36,15 +36,23 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function load() {
       console.log('[UserContext] Loading user data from storage');
+      
+      const timeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('UserContext load timeout')), 3000)
+      );
+
       try {
-        const [storedName, storedOnboarded] = await Promise.all([
-          loadUserName(),
-          loadOnboarded(),
+        const result = await Promise.race([
+          Promise.all([loadUserName(), loadOnboarded()]),
+          timeout
         ]);
+        
+        const [storedName, storedOnboarded] = result as [string | null, boolean];
         setNameState(storedName);
         setIsOnboardedState(storedOnboarded);
         console.log('[UserContext] Loaded name:', storedName, 'onboarded:', storedOnboarded);
       } catch (err) {
+        console.warn('[UserContext] Loading failed or timed out, using defaults:', err);
         logError(err, { context: 'UserContext.load' });
       } finally {
         setIsLoading(false);
