@@ -5,13 +5,14 @@ import type { App } from '../index.js';
 import { randomUUID } from 'crypto';
 
 interface CreateDoseBody {
+  id?: string;
   medication_id: string;
-  scheduled_time?: string;
+  scheduled_time?: string | null;
+  taken_at?: string;
 }
 
-function getDeviceId(request: FastifyRequest): string | null {
-  const deviceId = request.headers['x-device-id'];
-  return typeof deviceId === 'string' ? deviceId : null;
+function getUserId(request: FastifyRequest): string | null {
+  return (request.headers['x-user-id'] as string) || (request.headers['x-device-id'] as string) || null;
 }
 
 function parseDoseLog(log: any) {
@@ -19,119 +20,61 @@ function parseDoseLog(log: any) {
     id: log.id,
     medication_id: log.medication_id,
     scheduled_time: log.scheduled_time,
-    taken_at: log.taken_at,
-    created_at: log.created_at,
+    taken_at: log.taken_at instanceof Date ? log.taken_at.toISOString() : log.taken_at,
+    created_at: log.created_at instanceof Date ? log.created_at.toISOString() : log.created_at,
   };
 }
 
 export function register(app: App, fastify: FastifyInstance) {
   // POST /api/doses - Create dose log
-  fastify.post('/api/doses', {
-    schema: {
-      description: 'Log a dose of medication',
-      tags: ['doses'],
-      body: {
-        type: 'object',
-        required: ['medication_id'],
-        properties: {
-          medication_id: { type: 'string' },
-          scheduled_time: { type: 'string' },
-        },
-      },
-      response: {
-        201: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            medication_id: { type: 'string' },
-            scheduled_time: { type: 'string', nullable: true },
-            taken_at: { type: 'string', format: 'date-time' },
-            created_at: { type: 'string', format: 'date-time' },
-          },
-        },
-        400: { type: 'object', properties: { error: { type: 'string' } } },
-        404: { type: 'object', properties: { error: { type: 'string' } } },
-      },
-    },
-  }, async (request: FastifyRequest<{ Body: CreateDoseBody }>, reply: FastifyReply) => {
-    const deviceId = getDeviceId(request);
-    if (!deviceId) {
-      app.logger.warn('Missing x-device-id header');
-      return reply.status(400).send({ error: 'x-device-id header required' });
+  fastify.post('/api/doses', async (request: FastifyRequest<{ Body: CreateDoseBody }>, reply: FastifyReply) => {
+    const userId = getUserId(request);
+    if (!userId) {
+      return reply.status(400).send({ error: 'x-user-id header required' });
     }
 
-    const { medication_id, scheduled_time } = request.body;
-    app.logger.info({ deviceId, medicationId: medication_id }, 'Creating dose log');
+    const { id: bodyId, medication_id, scheduled_time, taken_at } = request.body;
 
     const med = await app.db
       .select()
       .from(schema.medications)
-      .where(and(eq(schema.medications.id, medication_id), eq(schema.medications.device_id, deviceId)))
+      .where(and(eq(schema.medications.id, medication_id), eq(schema.medications.user_id, userId)))
       .limit(1);
 
     if (med.length === 0) {
-      app.logger.warn({ medicationId: medication_id }, 'Medication not found');
       return reply.status(404).send({ error: 'Medication not found' });
     }
 
-    const id = randomUUID();
+    const id = bodyId || randomUUID();
     const [created] = await app.db
       .insert(schema.dose_logs)
       .values({
         id,
-        device_id: deviceId,
+        user_id: userId,
         medication_id,
         scheduled_time: scheduled_time || null,
+        ...(taken_at ? { taken_at: new Date(taken_at) } : {}),
       })
       .returning();
 
-    app.logger.info({ doseId: id, medicationId: medication_id }, 'Dose logged');
     return reply.status(201).send(parseDoseLog(created));
   });
 
-  // GET /api/doses/today - Get today's doses
-  fastify.get('/api/doses/today', {
-    schema: {
-      description: 'Get doses for a specific date',
-      tags: ['doses'],
-      querystring: {
-        type: 'object',
-        required: ['date'],
-        properties: {
-          date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-        },
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            doses: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string' },
-                  medication_id: { type: 'string' },
-                  scheduled_time: { type: 'string', nullable: true },
-                  taken_at: { type: 'string', format: 'date-time' },
-                  created_at: { type: 'string', format: 'date-time' },
-                },
-              },
-            },
-          },
-        },
-        400: { type: 'object', properties: { error: { type: 'string' } } },
-      },
-    },
-  }, async (request: FastifyRequest<{ Querystring: { date: string } }>, reply: FastifyReply) => {
-    const deviceId = getDeviceId(request);
-    if (!deviceId) {
-      app.logger.warn('Missing x-device-id header');
-      return reply.status(400).send({ error: 'x-device-id header required' });
+  // GET /api/doses/today - Get doses for a specific date (or all doses if no date provided)
+  fastify.get('/api/doses/today', async (request: FastifyRequest<{ Querystring: { date?: string } }>, reply: FastifyReply) => {
+    const userId = getUserId(request);
+    if (!userId) {
+      return reply.status(400).send({ error: 'x-user-id header required' });
     }
 
     const { date } = request.query;
-    app.logger.info({ deviceId, date }, 'Fetching doses for date');
+    if (!date) {
+      const doses = await app.db
+        .select()
+        .from(schema.dose_logs)
+        .where(eq(schema.dose_logs.user_id, userId));
+      return { doses: doses.map(parseDoseLog) };
+    }
 
     const startOfDay = new Date(`${date}T00:00:00Z`);
     const endOfDay = new Date(startOfDay);
@@ -142,58 +85,24 @@ export function register(app: App, fastify: FastifyInstance) {
       .from(schema.dose_logs)
       .where(
         and(
-          eq(schema.dose_logs.device_id, deviceId),
+          eq(schema.dose_logs.user_id, userId),
           gte(schema.dose_logs.taken_at, startOfDay),
           lt(schema.dose_logs.taken_at, endOfDay)
         )
       );
 
-    app.logger.info({ deviceId, date, count: doses.length }, 'Doses retrieved');
     return { doses: doses.map(parseDoseLog) };
   });
 
   // DELETE /api/doses/:id - Delete dose log
-  fastify.delete('/api/doses/:id', {
-    schema: {
-      description: 'Delete a dose log',
-      tags: ['doses'],
-      params: {
-        type: 'object',
-        required: ['id'],
-        properties: {
-          id: { type: 'string', format: 'uuid' },
-        },
-      },
-      response: {
-        200: { type: 'object', properties: { success: { type: 'boolean' } } },
-        400: { type: 'object', properties: { error: { type: 'string' } } },
-        404: { type: 'object', properties: { error: { type: 'string' } } },
-      },
-    },
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const deviceId = getDeviceId(request);
-    if (!deviceId) {
-      app.logger.warn('Missing x-device-id header');
-      return reply.status(400).send({ error: 'x-device-id header required' });
+  fastify.delete('/api/doses/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const userId = getUserId(request);
+    if (!userId) {
+      return reply.status(400).send({ error: 'x-user-id header required' });
     }
 
     const { id } = request.params;
-    app.logger.info({ deviceId, doseId: id }, 'Deleting dose log');
-
-    const existing = await app.db
-      .select()
-      .from(schema.dose_logs)
-      .where(and(eq(schema.dose_logs.id, id), eq(schema.dose_logs.device_id, deviceId)))
-      .limit(1);
-
-    if (existing.length === 0) {
-      app.logger.warn({ doseId: id }, 'Dose log not found');
-      return reply.status(404).send({ error: 'Dose log not found' });
-    }
-
-    await app.db.delete(schema.dose_logs).where(eq(schema.dose_logs.id, id));
-
-    app.logger.info({ doseId: id }, 'Dose log deleted');
+    await app.db.delete(schema.dose_logs).where(and(eq(schema.dose_logs.id, id), eq(schema.dose_logs.user_id, userId)));
     return { success: true };
   });
 }

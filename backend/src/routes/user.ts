@@ -12,8 +12,17 @@ async function handleGetUser(app: any, request: any, reply: any) {
   const userId = getUserId(request);
   if (!userId) return reply.status(400).send({ error: 'x-user-id header required' });
   
-  const [user] = await app.db.select().from(schema.users).where(eq(schema.users.id, userId));
-  if (!user) return reply.status(404).send({ error: 'User not found' });
+  let [user] = await app.db.select().from(schema.users).where(eq(schema.users.id, userId));
+  if (!user) {
+    [user] = await app.db
+      .insert(schema.users)
+      .values({
+        id: userId,
+        email: `${userId}@dosed.app`,
+        full_name: 'Jonathan',
+      })
+      .returning();
+  }
   
   return user;
 }
@@ -24,6 +33,21 @@ async function handleUpdateUser(app: any, request: any, reply: any) {
   
   const { full_name, avatar_url, caregiver_email } = request.body;
   
+  const existing = await app.db.select().from(schema.users).where(eq(schema.users.id, userId));
+  if (existing.length === 0) {
+    const [created] = await app.db
+      .insert(schema.users)
+      .values({
+        id: userId,
+        email: `${userId}@dosed.app`,
+        full_name: full_name ?? 'Jonathan',
+        avatar_url: avatar_url ?? null,
+        caregiver_email: caregiver_email ?? null,
+      })
+      .returning();
+    return created;
+  }
+
   const updateData: any = {};
   if (full_name !== undefined) updateData.full_name = full_name;
   if (avatar_url !== undefined) updateData.avatar_url = avatar_url;

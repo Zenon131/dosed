@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { openrouter } from '../utils/ai.js';
 import { z } from 'zod';
 import { eq, and } from 'drizzle-orm';
 import * as schema from '../db/schema/schema.js';
@@ -19,7 +19,7 @@ async function handleParseMed(app: any, request: any, reply: any) {
   const { text } = request.body;
   try {
     const { object } = await generateObject({
-      model: openai('gpt-4o-mini'),
+      model: openrouter('openai/gpt-4o-mini'),
       system: 'You are a medical data extraction assistant.',
       schema: ParseMedSchema,
       prompt: text,
@@ -31,7 +31,18 @@ async function handleParseMed(app: any, request: any, reply: any) {
 }
 
 function getUserId(request: FastifyRequest): string | null {
-  return request.headers['x-user-id'] as string || null;
+  return (request.headers['x-user-id'] as string) || (request.headers['x-device-id'] as string) || null;
+}
+
+async function ensureUserExists(app: any, userId: string) {
+  const existing = await app.db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+  if (existing.length === 0) {
+    await app.db.insert(schema.users).values({
+      id: userId,
+      email: `${userId}@dosed.app`,
+      full_name: 'Jonathan',
+    });
+  }
 }
 
 function parseMedication(med: any) {
@@ -41,16 +52,18 @@ function parseMedication(med: any) {
 async function handleGetMeds(app: any, request: any, reply: any) {
   const userId = getUserId(request);
   if (!userId) return reply.status(400).send({ error: 'User ID required' });
-  const meds = [{ id: "1", user_id: userId, name: "Test Med", dosage: "10mg", frequency: "once_daily", times: '["08:00"]', notes: null, color: "#FFF", created_at: new Date().toISOString() }];
+  const meds = await app.db.select().from(schema.medications).where(eq(schema.medications.user_id, userId));
   return { medications: meds.map(parseMedication) };
 }
 
 async function handleCreateMed(app: any, request: any, reply: any) {
   const userId = getUserId(request);
   if (!userId) return reply.status(400).send({ error: 'User ID required' });
-  const { name, dosage, frequency, times, notes, color } = request.body;
+  await ensureUserExists(app, userId);
+  const { id, name, dosage, frequency, times, notes, color } = request.body;
+  const medId = id || randomUUID();
   const [created] = await app.db.insert(schema.medications).values({
-    id: randomUUID(), user_id: userId, name, dosage, frequency, times: JSON.stringify(times), notes, color,
+    id: medId, user_id: userId, name, dosage, frequency, times: JSON.stringify(times ?? []), notes: notes ?? null, color: color ?? '#7C3AED',
   }).returning();
   return reply.status(201).send(parseMedication(created));
 }

@@ -31,6 +31,20 @@ async function handleUpdateToken(app: any, request: FastifyRequest<{ Body: Token
   const { push_token } = request.body;
 
   try {
+    const userExists = await app.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    if (userExists.length === 0) {
+      await app.db.insert(schema.users).values({
+        id: userId,
+        email: `${userId}@dosed.app`,
+        full_name: 'Jonathan',
+      });
+    }
+
     const existing = await app.db
       .select()
       .from(schema.devices)
