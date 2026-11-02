@@ -13,12 +13,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jonathanwallace.dosed",
+      "bundleIdentifier": "com.p06a48a0780d04c559ddb288c5951edaa.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationsUsageDescription": "Dosed sends local reminders when it's time to take your medication."
       },
-      "buildNumber": "15"
+      "buildNumber": "16"
     },
     "android": {
       "adaptiveIcon": {
