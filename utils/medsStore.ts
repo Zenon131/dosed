@@ -31,13 +31,13 @@ export async function getAllMeds(): Promise<Medication[]> {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data.medications)) {
-        // Filter out the legacy "Test Med" seed stub if present on an un-updated server
         const cloudMeds: Medication[] = data.medications.filter(
           (m: Medication) => !(m.id === '1' && m.name === 'Test Med')
         );
-        // Merge any local meds not yet in cloud
+        
         const cloudIds = new Set(cloudMeds.map(m => m.id));
         const unsyncedLocal = localMeds.filter(m => !cloudIds.has(m.id));
+        
         for (const med of unsyncedLocal) {
           fetch(`${API_BASE_URL}/api/medications`, {
             method: 'POST',
@@ -45,6 +45,7 @@ export async function getAllMeds(): Promise<Medication[]> {
             body: JSON.stringify(med),
           }).catch(() => {});
         }
+        
         const merged = [...cloudMeds, ...unsyncedLocal];
         await saveMeds(merged);
         return merged;
@@ -136,26 +137,34 @@ export async function updateMed(
 
 export async function deleteMed(id: string): Promise<void> {
   console.log('[MedsStore] deleteMed:', id);
-  const [meds, doses] = await Promise.all([loadMeds(), loadDoses()]);
-  const filteredMeds = meds.filter(m => m.id !== id);
-  const filteredDoses = doses.filter(d => d.medication_id !== id);
-  await Promise.all([saveMeds(filteredMeds), saveDoses(filteredDoses)]);
-
+  
   try {
     const headers = await getCloudHeaders();
-    await fetch(`${API_BASE_URL}/api/medications/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/api/medications/${id}`, {
       method: 'DELETE',
       headers,
     });
-  } catch (err) {
-    console.log('[MedsStore] Cloud sync deleteMed deferred:', err instanceof Error ? err.message : String(err));
-  }
 
-  console.log('[MedsStore] deleteMed success, also removed doses for med');
-  try {
-    await cancelMedNotifications(id);
+    // Treat 404 as success: if it's already gone from the cloud, we can safely remove it locally.
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Server failed to delete med: ${res.status}`);
+    }
+
+    const [meds, doses] = await Promise.all([loadMeds(), loadDoses()]);
+    const filteredMeds = meds.filter(m => m.id !== id);
+    const filteredDoses = doses.filter(d => d.medication_id !== id);
+    await Promise.all([saveMeds(filteredMeds), saveDoses(filteredDoses)]);
+    
+    console.log('[MedsStore] deleteMed success, also removed doses for med');
   } catch (err) {
-    logError(err, { context: 'medsStore.deleteMed.notifications' });
+    console.error('[MedsStore] deleteMed critical failure:', err instanceof Error ? err.message : String(err));
+    throw err;
+  } finally {
+    try {
+      await cancelMedNotifications(id);
+    } catch (err) {
+      logError(err, { context: 'medsStore.deleteMed.notifications' });
+    }
   }
 }
 
