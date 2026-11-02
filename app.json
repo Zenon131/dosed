@@ -65,5 +65,8 @@
     },
     "owner": "jwallace2026",
     "runtimeVersion": "1.0"
+  },
+  "ios": {
+    "supportsTablet": false
   }
 }
