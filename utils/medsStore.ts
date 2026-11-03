@@ -138,33 +138,38 @@ export async function updateMed(
 export async function deleteMed(id: string): Promise<void> {
   console.log('[MedsStore] deleteMed:', id);
   
+  let cloudDeleteFailed = false;
   try {
     const headers = await getCloudHeaders();
     const res = await fetch(`${API_BASE_URL}/api/medications/${id}`, {
       method: 'DELETE',
       headers,
     });
-
-    // Treat 404 as success: if it's already gone from the cloud, we can safely remove it locally.
-    if (!res.ok && res.status !== 404) {
-      throw new Error(`Server failed to delete med: ${res.status}`);
+    if (!res.ok) {
+      console.warn('[MedsStore] Cloud delete returned non-OK status:', res.status);
+      cloudDeleteFailed = true;
     }
+  } catch (err) {
+    console.warn('[MedsStore] Cloud delete network error (proceeding with local delete):', err instanceof Error ? err.message : String(err));
+    cloudDeleteFailed = true;
+  }
 
+  // ALWAYS remove from local storage to ensure the user experience is not blocked.
+  try {
     const [meds, doses] = await Promise.all([loadMeds(), loadDoses()]);
     const filteredMeds = meds.filter(m => m.id !== id);
     const filteredDoses = doses.filter(d => d.medication_id !== id);
     await Promise.all([saveMeds(filteredMeds), saveDoses(filteredDoses)]);
-    
-    console.log('[MedsStore] deleteMed success, also removed doses for med');
+    console.log('[MedsStore] Local delete success. Cloud delete failed:', cloudDeleteFailed);
+  } catch (localErr) {
+    console.error('[MedsStore] Local delete failed (critical):', localErr instanceof Error ? localErr.message : String(localErr));
+    throw localErr;
+  }
+  
+  try {
+    await cancelMedNotifications(id);
   } catch (err) {
-    console.error('[MedsStore] deleteMed critical failure:', err instanceof Error ? err.message : String(err));
-    throw err;
-  } finally {
-    try {
-      await cancelMedNotifications(id);
-    } catch (err) {
-      logError(err, { context: 'medsStore.deleteMed.notifications' });
-    }
+    logError(err, { context: 'medsStore.deleteMed.notifications' });
   }
 }
 
