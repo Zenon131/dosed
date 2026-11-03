@@ -27,6 +27,13 @@ export async function getAllMeds(): Promise<Medication[]> {
   const [localMeds, deletedIds] = await Promise.all([loadMeds(), loadDeletedMedIds()]);
   const deletedSet = new Set(deletedIds);
 
+  // Sweep: cancel any orphaned local notifications for tombstoned meds
+  // (catches notifications orphaned by buggy-era deletes that errored
+  // before cancelMedNotifications could run)
+  for (const deletedId of deletedIds) {
+    cancelMedNotifications(deletedId).catch(() => {});
+  }
+
   // Filter out any tombstoned meds from local before anything else
   const liveLocalMeds = localMeds.filter(m => !deletedSet.has(m.id));
   if (liveLocalMeds.length !== localMeds.length) {
@@ -43,10 +50,19 @@ export async function getAllMeds(): Promise<Medication[]> {
           (m: Medication) => !(m.id === '1' && m.name === 'Test Med')
         );
 
-        // NEVER resurrect tombstoned meds from the cloud
+        // NEVER resurrect tombstoned meds from the cloud — and actively
+        // reconcile: DELETE the stale rows server-side so the AI
+        // dispatcher stops sending notifications for them
+        const tombstonedCloudMeds = cloudMeds.filter(m => deletedSet.has(m.id));
         const liveCloudMeds = cloudMeds.filter(m => !deletedSet.has(m.id));
-        if (liveCloudMeds.length !== cloudMeds.length) {
-          console.log('[MedsStore] getAllMeds: refusing to resurrect', cloudMeds.length - liveCloudMeds.length, 'tombstoned cloud meds');
+        if (tombstonedCloudMeds.length > 0) {
+          console.log('[MedsStore] getAllMeds: reconciling', tombstonedCloudMeds.length, 'tombstoned cloud meds (deleting from server)');
+          for (const med of tombstonedCloudMeds) {
+            fetch(`${API_BASE_URL}/api/medications/${med.id}`, {
+              method: 'DELETE',
+              headers,
+            }).catch(() => {});
+          }
         }
 
         const cloudIds = new Set(liveCloudMeds.map(m => m.id));

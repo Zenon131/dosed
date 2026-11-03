@@ -15,6 +15,8 @@ import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { API_BASE_URL } from '@/constants/api';
 import { useUser } from '@/contexts/UserContext';
 import { getDeviceId } from '@/utils/storage';
+import { getAllMeds } from '@/utils/medsStore';
+import { rescheduleAll } from '@/utils/notifications';
 
 export default function ProfileScreen() {
   const COLORS = useColors();
@@ -110,6 +112,15 @@ export default function ProfileScreen() {
       }
       setEditing(false);
       Alert.alert('Saved', 'Your profile has been updated.');
+
+      // Re-schedule all local notifications with the updated name so
+      // reminders stop using the old name
+      try {
+        const meds = await getAllMeds();
+        await rescheduleAll(meds, trimmedName);
+      } catch (reschedErr) {
+        console.warn('[Profile] Failed to reschedule notifications after name change:', reschedErr);
+      }
     } catch (err) {
       Alert.alert('Error', 'Could not save profile.');
     } finally {
