@@ -8,6 +8,7 @@ export const KEYS = {
   USER_NAME: '@sassy_meds/user_name',
   ONBOARDED: '@sassy_meds/onboarded',
   DEVICE_ID: '@sassy_meds/device_id',
+  DELETED_MEDS: '@sassy_meds/deleted_med_ids',
 } as const;
 
 export async function getDeviceId(): Promise<string> {
@@ -62,6 +63,26 @@ export async function saveDoses(doses: DoseLog[]): Promise<void> {
     await AsyncStorage.setItem(KEYS.DOSES, JSON.stringify(doses));
   } catch (err) {
     logError(err, { context: 'storage.saveDoses' });
+    throw err;
+  }
+}
+
+export async function loadDeletedMedIds(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.DELETED_MEDS);
+    if (!raw) return [];
+    return JSON.parse(raw) as string[];
+  } catch (err) {
+    logError(err, { context: 'storage.loadDeletedMedIds' });
+    return [];
+  }
+}
+
+export async function saveDeletedMedIds(ids: string[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEYS.DELETED_MEDS, JSON.stringify(ids));
+  } catch (err) {
+    logError(err, { context: 'storage.saveDeletedMedIds' });
     throw err;
   }
 }

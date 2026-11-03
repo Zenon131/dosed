@@ -1,6 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { Medication, DoseLog, StatsResponse, FREQUENCY_COUNT } from '@/types/meds';
-import { loadMeds, saveMeds, loadDoses, saveDoses, loadUserName, getDeviceId } from './storage';
+import { loadMeds, saveMeds, loadDoses, saveDoses, loadUserName, getDeviceId, loadDeletedMedIds, saveDeletedMedIds } from './storage';
 import { logError } from './errorLogger';
 import { scheduleMedNotifications, cancelMedNotifications } from './notifications';
 import { API_BASE_URL } from '@/constants/api';
@@ -24,7 +24,15 @@ async function getCloudHeaders(): Promise<Record<string, string>> {
 
 export async function getAllMeds(): Promise<Medication[]> {
   console.log('[MedsStore] getAllMeds');
-  const localMeds = await loadMeds();
+  const [localMeds, deletedIds] = await Promise.all([loadMeds(), loadDeletedMedIds()]);
+  const deletedSet = new Set(deletedIds);
+
+  // Filter out any tombstoned meds from local before anything else
+  const liveLocalMeds = localMeds.filter(m => !deletedSet.has(m.id));
+  if (liveLocalMeds.length !== localMeds.length) {
+    console.log('[MedsStore] getAllMeds: filtering out', localMeds.length - liveLocalMeds.length, 'tombstoned local meds');
+  }
+
   try {
     const headers = await getCloudHeaders();
     const res = await fetch(`${API_BASE_URL}/api/medications`, { headers });
@@ -34,10 +42,16 @@ export async function getAllMeds(): Promise<Medication[]> {
         const cloudMeds: Medication[] = data.medications.filter(
           (m: Medication) => !(m.id === '1' && m.name === 'Test Med')
         );
-        
-        const cloudIds = new Set(cloudMeds.map(m => m.id));
-        const unsyncedLocal = localMeds.filter(m => !cloudIds.has(m.id));
-        
+
+        // NEVER resurrect tombstoned meds from the cloud
+        const liveCloudMeds = cloudMeds.filter(m => !deletedSet.has(m.id));
+        if (liveCloudMeds.length !== cloudMeds.length) {
+          console.log('[MedsStore] getAllMeds: refusing to resurrect', cloudMeds.length - liveCloudMeds.length, 'tombstoned cloud meds');
+        }
+
+        const cloudIds = new Set(liveCloudMeds.map(m => m.id));
+        const unsyncedLocal = liveLocalMeds.filter(m => !cloudIds.has(m.id));
+
         for (const med of unsyncedLocal) {
           fetch(`${API_BASE_URL}/api/medications`, {
             method: 'POST',
@@ -45,8 +59,8 @@ export async function getAllMeds(): Promise<Medication[]> {
             body: JSON.stringify(med),
           }).catch(() => {});
         }
-        
-        const merged = [...cloudMeds, ...unsyncedLocal];
+
+        const merged = [...liveCloudMeds, ...unsyncedLocal];
         await saveMeds(merged);
         return merged;
       }
@@ -54,7 +68,7 @@ export async function getAllMeds(): Promise<Medication[]> {
   } catch (err) {
     console.log('[MedsStore] Cloud fetch fallback to local cache:', err instanceof Error ? err.message : String(err));
   }
-  return localMeds;
+  return liveLocalMeds;
 }
 
 export async function getMedById(id: string): Promise<Medication | null> {
@@ -137,8 +151,22 @@ export async function updateMed(
 
 export async function deleteMed(id: string): Promise<void> {
   console.log('[MedsStore] deleteMed:', id);
-  
-  let cloudDeleteFailed = false;
+
+  // 1. TOMBSTONE FIRST — record the deletion permanently before anything else.
+  //    This guarantees getAllMeds can never resurrect this med, even if the
+  //    cloud delete fails or a concurrent sync is in flight.
+  try {
+    const deletedIds = await loadDeletedMedIds();
+    if (!deletedIds.includes(id)) {
+      deletedIds.push(id);
+      await saveDeletedMedIds(deletedIds);
+      console.log('[MedsStore] Tombstone recorded for med:', id);
+    }
+  } catch (err) {
+    console.error('[MedsStore] CRITICAL: failed to record tombstone:', err instanceof Error ? err.message : String(err));
+  }
+
+  // 2. Attempt cloud delete (best-effort; failure is logged, not fatal)
   try {
     const headers = await getCloudHeaders();
     const res = await fetch(`${API_BASE_URL}/api/medications/${id}`, {
@@ -147,25 +175,23 @@ export async function deleteMed(id: string): Promise<void> {
     });
     if (!res.ok) {
       console.warn('[MedsStore] Cloud delete returned non-OK status:', res.status);
-      cloudDeleteFailed = true;
     }
   } catch (err) {
-    console.warn('[MedsStore] Cloud delete network error (proceeding with local delete):', err instanceof Error ? err.message : String(err));
-    cloudDeleteFailed = true;
+    console.warn('[MedsStore] Cloud delete network error (tombstone will prevent resurrection):', err instanceof Error ? err.message : String(err));
   }
 
-  // ALWAYS remove from local storage to ensure the user experience is not blocked.
+  // 3. ALWAYS remove from local storage
   try {
     const [meds, doses] = await Promise.all([loadMeds(), loadDoses()]);
     const filteredMeds = meds.filter(m => m.id !== id);
     const filteredDoses = doses.filter(d => d.medication_id !== id);
     await Promise.all([saveMeds(filteredMeds), saveDoses(filteredDoses)]);
-    console.log('[MedsStore] Local delete success. Cloud delete failed:', cloudDeleteFailed);
+    console.log('[MedsStore] Local delete success for med:', id);
   } catch (localErr) {
-    console.error('[MedsStore] Local delete failed (critical):', localErr instanceof Error ? localErr.message : String(localErr));
-    throw localErr;
+    console.error('[MedsStore] Local delete failed (tombstone still active):', localErr instanceof Error ? localErr.message : String(localErr));
   }
-  
+
+  // 4. Cancel notifications
   try {
     await cancelMedNotifications(id);
   } catch (err) {
