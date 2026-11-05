@@ -274,7 +274,7 @@ export async function getTodayDoses(dateISO: string): Promise<DoseLog[]> {
 
 export async function getStats7Day(): Promise<StatsResponse> {
   console.log('[MedsStore] getStats7Day');
-  const [meds, allDoses] = await Promise.all([loadMeds(), loadDoses()]);
+  const [meds, allDoses] = await Promise.all([getAllMeds(), loadDoses()]);
 
   const days: { date: string; taken: number; expected: number }[] = [];
 

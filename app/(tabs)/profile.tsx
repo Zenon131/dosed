@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useColors } from '@/constants/MedColors';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { API_BASE_URL } from '@/constants/api';
@@ -21,6 +22,7 @@ import { rescheduleAll } from '@/utils/notifications';
 export default function ProfileScreen() {
   const COLORS = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { name, setName, reset } = useUser();
 
   const [user, setUser] = useState<{
@@ -139,11 +141,15 @@ export default function ProfileScreen() {
           style: 'destructive', 
           onPress: async () => {
             try {
+              const userId = await getDeviceId();
               await fetch(`${API_BASE_URL}/api/user`, {
                 method: 'DELETE',
-                headers: { 'x-user-id': 'test-user-123' },
+                headers: { 'x-user-id': userId },
               });
-              Alert.alert('Deleted', 'Your account has been removed.');
+              await reset();
+              Alert.alert('Deleted', 'Your account has been removed.', [
+                { text: 'OK', onPress: () => router.replace('/welcome') }
+              ]);
             } catch (e) {
               Alert.alert('Error', 'Could not delete account.');
             }

@@ -18,7 +18,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationsUsageDescription": "Dosed sends local reminders when it's time to take your medication."
       },
-      "buildNumber": "17"
+      "buildNumber": "29"
     },
     "android": {
       "adaptiveIcon": {

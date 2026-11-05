@@ -12,16 +12,9 @@ async function handleGetUser(app: any, request: any, reply: any) {
   const userId = getUserId(request);
   if (!userId) return reply.status(400).send({ error: 'x-user-id header required' });
   
-  let [user] = await app.db.select().from(schema.users).where(eq(schema.users.id, userId));
+  const [user] = await app.db.select().from(schema.users).where(eq(schema.users.id, userId));
   if (!user) {
-    [user] = await app.db
-      .insert(schema.users)
-      .values({
-        id: userId,
-        email: `${userId}@dosed.app`,
-        full_name: 'Jonathan',
-      })
-      .returning();
+    return reply.status(404).send({ error: 'User not found' });
   }
   
   return user;
