@@ -269,7 +269,14 @@ export async function undoDose(doseId: string): Promise<void> {
 export async function getTodayDoses(dateISO: string): Promise<DoseLog[]> {
   console.log('[MedsStore] getTodayDoses for date:', dateISO);
   const doses = await loadDoses();
-  return doses.filter(d => d.taken_at.startsWith(dateISO));
+  return doses.filter(d => {
+    const dDate = new Date(d.taken_at);
+    const y = dDate.getFullYear();
+    const m = String(dDate.getMonth() + 1).padStart(2, '0');
+    const day = String(dDate.getDate()).padStart(2, '0');
+    const localISO = `${y}-${m}-${day}`;
+    return localISO === dateISO;
+  });
 }
 
 export async function getStats7Day(): Promise<StatsResponse> {
@@ -295,9 +302,14 @@ export async function getStats7Day(): Promise<StatsResponse> {
       }
     }
 
-    const taken = allDoses.filter(
-      d => d.taken_at.startsWith(dateStr) && d.scheduled_time !== null
-    ).length;
+    const taken = allDoses.filter(d => {
+      const dDate = new Date(d.taken_at);
+      const y = dDate.getFullYear();
+      const m = String(dDate.getMonth() + 1).padStart(2, '0');
+      const day = String(dDate.getDate()).padStart(2, '0');
+      const localISO = `${y}-${m}-${day}`;
+      return localISO === dateStr && d.scheduled_time !== null;
+    }).length;
 
     days.push({ date: dateStr, taken, expected });
   }
